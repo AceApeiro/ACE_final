@@ -1276,48 +1276,56 @@ ${absXml}          <source srcid="???"/>
       let okToProcess = false;
 
       // --- ID+Version gating logic (ACE rule)
-// 1) If PDF has arXiv ID:
-//    - If PDF has version: PDF/HTML/Scrape must match BOTH id and version.
-//    - If PDF has NO version: PDF id must match HTML/Scrape id, and HTML+Scrape versions must match each other.
-// 2) If PDF has NO arXiv ID:
-//    - PDF and HTML titles must match (strict).
-//    - Then HTML+Scrape id+version must match.
-if (pdfHasId) {
-  const pdfId = normId(pdfIdVer.id);
-  const pdfVer = normVer(pdfIdVer.version);
-  const htmlId = normId(htmlIdVer.id);
-  const htmlVer = normVer(htmlIdVer.version);
-  const scId = normId(scrapeIdVer.id);
-  const scVer = normVer(scrapeIdVer.version);
+      // 1) If PDF has arXiv ID:
+      //    - If PDF has version: PDF/HTML/Scrape must match BOTH id and version.
+      //    - If PDF has NO version: PDF id must match HTML/Scrape id, and HTML+Scrape versions must match each other.
+      // 2) If PDF has NO arXiv ID:
+      //    - PDF and HTML titles must match (strict).
+      //    - Then HTML+Scrape id+version must match.
+      const pdfId = normId(pdfIdVer.id);
+      const pdfVer = normVer(pdfIdVer.version);
+      const htmlId = normId(htmlIdVer.id);
+      const htmlVer = normVer(htmlIdVer.version);
+      const scrId = normId(scrIdVer.id);
+      const scrVer = normVer(scrIdVer.version);
 
-  if (pdfVer) {
-    if (!(pdfId && htmlId && scId && pdfId === htmlId && pdfId === scId && htmlVer && scVer && pdfVer === htmlVer && pdfVer === scVer)) {
-      holdReason = `Version mismatched: PDF=${pdfId}${pdfVer||""}, HTML=${htmlId}${htmlVer||""}, SCRAPE=${scId}${scVer||""}`;
-      continue;
-    }
-  } else {
-    if (!(pdfId && htmlId && scId && pdfId === htmlId && pdfId === scId && htmlVer && scVer && htmlVer === scVer)) {
-      holdReason = `Version mismatched (PDF has no version): PDF=${pdfId}, HTML=${htmlId}${htmlVer||""}, SCRAPE=${scId}${scVer||""}`;
-      continue;
-    }
-  }
-} else {
-  const pdfTitleNormStrict = strictTitleKey(pdfTitle || "");
-  const htmlTitleNormStrict = strictTitleKey(htmlTitle || "");
-  if (!(pdfTitleNormStrict && htmlTitleNormStrict && pdfTitleNormStrict === htmlTitleNormStrict)) {
-    holdReason = "PDF has no arXiv ID and title mismatch with HTML → held";
-    continue;
-  }
+      if (pdfHasId) {
+        if (pdfVer) {
+          const allMatch = pdfId && htmlId && scrId && htmlVer && scrVer &&
+            pdfId === htmlId && pdfId === scrId &&
+            pdfVer === htmlVer && pdfVer === scrVer;
+          if (allMatch) {
+            okToProcess = true;
+          } else {
+            holdReason = `Version mismatched: PDF=${pdfId}${pdfVer||""}, HTML=${htmlId}${htmlVer||""}, SCRAPE=${scrId}${scrVer||""}`;
+          }
+        } else {
+          const idsMatch = pdfId && htmlId && scrId &&
+            pdfId === htmlId && pdfId === scrId;
+          const versionsMatch = htmlVer && scrVer && htmlVer === scrVer;
+          if (idsMatch && versionsMatch) {
+            okToProcess = true;
+          } else {
+            holdReason = `Version mismatched (PDF has no version): PDF=${pdfId}, HTML=${htmlId}${htmlVer||""}, SCRAPE=${scrId}${scrVer||""}`;
+          }
+        }
+      } else {
+        const pdfTitleNormStrict = strictTitleKey(pdfTitleGuess || "");
+        const htmlTitleNormStrict = strictTitleKey(htmlTitle || "");
+        const titlesMatch = pdfTitleNormStrict && htmlTitleNormStrict && pdfTitleNormStrict === htmlTitleNormStrict;
 
-  const htmlId = normId(htmlIdVer.id);
-  const htmlVer = normVer(htmlIdVer.version);
-  const scId = normId(scrapeIdVer.id);
-  const scVer = normVer(scrapeIdVer.version);
-  if (!(htmlId && scId && htmlId === scId && htmlVer && scVer && htmlVer === scVer)) {
-    holdReason = `Version mismatched (PDF no id): HTML=${htmlId}${htmlVer||""}, SCRAPE=${scId}${scVer||""}`;
-    continue;
-  }
-}
+        if (!titlesMatch) {
+          holdReason = "PDF has no arXiv ID and title mismatch with HTML → held";
+        } else {
+          const idsMatch = htmlId && scrId && htmlId === scrId;
+          const versionsMatch = htmlVer && scrVer && htmlVer === scrVer;
+          if (idsMatch && versionsMatch) {
+            okToProcess = true;
+          } else {
+            holdReason = `Version mismatched (PDF no id): HTML=${htmlId}${htmlVer||""}, SCRAPE=${scrId}${scrVer||""}`;
+          }
+        }
+      }
 
       matchVal.innerHTML = okToProcess
         ? badge("OK – PROCESS", "good")
